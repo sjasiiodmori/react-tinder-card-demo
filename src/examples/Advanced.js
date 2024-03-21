@@ -1,114 +1,120 @@
-import React, { useState, useMemo, useRef } from 'react'
-import TinderCard from 'react-tinder-card'
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import TinderCard from 'react-tinder-card';
+import axios from 'axios';
 
-const db = [
-  {
-    name: 'Richard Hendricks',
-    url: './img/richard.jpg'
-  },
-  {
-    name: 'Erlich Bachman',
-    url: './img/erlich.jpg'
-  },
-  {
-    name: 'Monica Hall',
-    url: './img/monica.jpg'
-  },
-  {
-    name: 'Jared Dunn',
-    url: './img/jared.jpg'
-  },
-  {
-    name: 'Dinesh Chugtai',
-    url: './img/dinesh.jpg'
+function Advanced() {
+  const [cards, setCards] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [lastDirection, setLastDirection] = useState();
+  const [preloadedImages, setPreloadedImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false); // Define isLoading state
+  const currentIndexRef = useRef(currentIndex);
+  const childRefs = useMemo(() => Array(cards.length).fill(0).map(() => React.createRef()), [cards]);
+
+  useEffect(() => {
+    fetchNewCard();
+  }, []);
+
+  useEffect(() => {
+    preloadImages();
+  }, [cards]);
+
+  const fetchNewCard = async () => {
+    if (isLoading) return;
+    setIsLoading(true); // Set isLoading to true before making the API call
+    try {
+      const response = await axios.get('https://sdk-api.pump.fun/coins/?limit=1&offset=' + (cards.length || 1));
+      const newCard = response.data[0];
+      setCards(prevCards => [...prevCards, newCard]);
+    } catch (error) {
+      console.error('Error fetching new card:', error);
+    } finally {
+      setIsLoading(false); // Set isLoading back to false after the API call is complete
+    }
   }
-]
-
-function Advanced () {
-  const [currentIndex, setCurrentIndex] = useState(db.length - 1)
-  const [lastDirection, setLastDirection] = useState()
-  // used for outOfFrame closure
-  const currentIndexRef = useRef(currentIndex)
-
-  const childRefs = useMemo(
-    () =>
-      Array(db.length)
-        .fill(0)
-        .map((i) => React.createRef()),
-    []
-  )
-
   const updateCurrentIndex = (val) => {
-    setCurrentIndex(val)
-    currentIndexRef.current = val
+    setCurrentIndex(val);
+    currentIndexRef.current = val;
   }
 
-  const canGoBack = currentIndex < db.length - 1
+  const canGoBack = currentIndex > 0;
+  const canSwipe = currentIndex < cards.length;
 
-  const canSwipe = currentIndex >= 0
-
-  // set last direction and decrease current index
-  const swiped = (direction, nameToDelete, index) => {
-    setLastDirection(direction)
-    updateCurrentIndex(index - 1)
+  const swiped = async (direction, nameToDelete, index) => {
+    setLastDirection(direction);
+    if (index === cards.length - 1) {
+      await fetchNewCard();
+    }
+    updateCurrentIndex(index + 1);
   }
 
-  const outOfFrame = (name, idx) => {
-    console.log(`${name} (${idx}) left the screen!`, currentIndexRef.current)
-    // handle the case in which go back is pressed before card goes outOfFrame
-    currentIndexRef.current >= idx && childRefs[idx].current.restoreCard()
-    // TODO: when quickly swipe and restore multiple times the same card,
-    // it happens multiple outOfFrame events are queued and the card disappear
-    // during latest swipes. Only the last outOfFrame event should be considered valid
-  }
-
-  const swipe = async (dir) => {
-    if (canSwipe && currentIndex < db.length) {
-      await childRefs[currentIndex].current.swipe(dir) // Swipe the card!
+  const outOfFrame = (coin, idx) => {
+    console.log(`${coin.name} (${idx}) left the screen!`, currentIndexRef.current);
+    if (childRefs[idx] && childRefs[idx].current) {
+      currentIndexRef.current >= idx && childRefs[idx].current.restoreCard();
     }
   }
 
-  // increase current index and show card
+  const swipe = async (dir) => {
+    if (!canSwipe || !childRefs[currentIndex] || !childRefs[currentIndex].current) return;
+    await childRefs[currentIndex].current.swipe(dir);
+  }
+
   const goBack = async () => {
-    if (!canGoBack) return
-    const newIndex = currentIndex + 1
-    updateCurrentIndex(newIndex)
-    await childRefs[newIndex].current.restoreCard()
+    if (!canGoBack || !cards[currentIndex - 1]) return;
+    const newIndex = currentIndex - 1;
+    updateCurrentIndex(newIndex);
+  }
+  
+  const preloadImages = () => {
+    const preloadCount = 2; // Number of images to preload
+    const startIndex = currentIndex + preloadCount;
+    const endIndex = Math.min(cards.length - 1, startIndex + preloadCount);
+    const imagesToPreload = cards.slice(startIndex, endIndex + 1).map(card => new Image().src = card.image_uri);
+    setPreloadedImages(imagesToPreload);
   }
 
   return (
     <div>
-      <link
-        href='https://fonts.googleapis.com/css?family=Damion&display=swap'
-        rel='stylesheet'
-      />
-      <link
-        href='https://fonts.googleapis.com/css?family=Alatsi&display=swap'
-        rel='stylesheet'
-      />
       <h1>React Tinder Card</h1>
       <div className='cardContainer'>
-        {db.map((character, index) => (
+        {currentIndex > 0 && (
           <TinderCard
-            ref={childRefs[index]}
+            ref={childRefs[currentIndex - 1]}
             className='swipe'
-            key={character.name}
-            onSwipe={(dir) => swiped(dir, character.name, index)}
-            onCardLeftScreen={() => outOfFrame(character.name, index)}
+            key={`${cards[currentIndex - 1].id}-${currentIndex - 1}`}
+            onSwipe={(dir) => swiped(dir, cards[currentIndex - 1].name, currentIndex - 1)}
+            onCardLeftScreen={() => outOfFrame(cards[currentIndex - 1], currentIndex - 1)}
           >
             <div
-              style={{ backgroundImage: 'url(' + character.url + ')' }}
+              style={{ backgroundImage: `url(${cards[currentIndex - 1].image_uri})` }}
               className='card'
             >
-              <h3>{character.name}</h3>
+              <h3>{cards[currentIndex - 1].name}</h3>
             </div>
           </TinderCard>
-        ))}
+        )}
+        {currentIndex < cards.length && (
+          <TinderCard
+            ref={childRefs[currentIndex]}
+            className='swipe'
+            key={`${cards[currentIndex].id}-${currentIndex}`}
+            onSwipe={(dir) => swiped(dir, cards[currentIndex].name, currentIndex)}
+            onCardLeftScreen={() => outOfFrame(cards[currentIndex], currentIndex)}
+          >
+            <div
+              style={{ backgroundImage: `url(${cards[currentIndex].image_uri})` }}
+              className='card'
+            >
+              <h3>{cards[currentIndex].name}</h3>
+            </div>
+          </TinderCard>
+        )}
       </div>
       <div className='buttons'>
-        <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} onClick={() => swipe('left')}>Swipe left!</button>
-        <button style={{ backgroundColor: !canGoBack && '#c3c4d3' }} onClick={() => goBack()}>Undo swipe!</button>
-        <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} onClick={() => swipe('right')}>Swipe right!</button>
+        <button style={{ backgroundColor: (!canSwipe) ? '#c3c4d3' : undefined }} onClick={() => swipe('left')} disabled={!canSwipe}>Swipe left!</button>
+        <button style={{ backgroundColor: (!canGoBack) ? '#c3c4d3' : undefined }} onClick={() => goBack()} disabled={!canGoBack}>Undo swipe!</button>
+        <button style={{ backgroundColor: (!canSwipe) ? '#c3c4d3' : undefined }} onClick={() => swipe('right')} disabled={!canSwipe}>Swipe right!</button>
       </div>
       {lastDirection ? (
         <h2 key={lastDirection} className='infoText'>
@@ -116,11 +122,10 @@ function Advanced () {
         </h2>
       ) : (
         <h2 className='infoText'>
-          Swipe a card or press a button to get Restore Card button visible!
+        Swipe a card or press a button to get Restore Card button visible!
         </h2>
-      )}
-    </div>
-  )
-}
-
-export default Advanced
+        )}
+        </div>
+        );
+        }
+        export default Advanced;

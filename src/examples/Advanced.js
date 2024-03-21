@@ -22,17 +22,19 @@ function Advanced() {
 
   const fetchNewCard = async () => {
     if (isLoading) return;
-    setIsLoading(true); // Set isLoading to true before making the API call
+    setIsLoading(true);
     try {
       const response = await axios.get('https://sdk-api.pump.fun/coins/?limit=1&offset=' + (cards.length || 1));
       const newCard = response.data[0];
       setCards(prevCards => [...prevCards, newCard]);
+      updateCurrentIndex(cards.length); // Update index after adding the new card
     } catch (error) {
       console.error('Error fetching new card:', error);
     } finally {
-      setIsLoading(false); // Set isLoading back to false after the API call is complete
+      setIsLoading(false);
     }
   }
+  
   const updateCurrentIndex = (val) => {
     setCurrentIndex(val);
     currentIndexRef.current = val;
@@ -62,9 +64,10 @@ function Advanced() {
   }
 
   const goBack = async () => {
+    console.log("Undo button clicked"); // Log to check if goBack function is called
     if (!canGoBack || !cards[currentIndex - 1]) return;
     const newIndex = currentIndex - 1;
-    updateCurrentIndex(newIndex);
+    setCurrentIndex(newIndex); // Update currentIndex to display the previous card
   }
   
   const preloadImages = () => {
@@ -79,39 +82,23 @@ function Advanced() {
     <div>
       <h1>React Tinder Card</h1>
       <div className='cardContainer'>
-        {currentIndex > 0 && (
-          <TinderCard
-            ref={childRefs[currentIndex - 1]}
-            className='swipe'
-            key={`${cards[currentIndex - 1].id}-${currentIndex - 1}`}
-            onSwipe={(dir) => swiped(dir, cards[currentIndex - 1].name, currentIndex - 1)}
-            onCardLeftScreen={() => outOfFrame(cards[currentIndex - 1], currentIndex - 1)}
-          >
-            <div
-              style={{ backgroundImage: `url(${cards[currentIndex - 1].image_uri})` }}
-              className='card'
-            >
-              <h3>{cards[currentIndex - 1].name}</h3>
-            </div>
-          </TinderCard>
-        )}
-        {currentIndex < cards.length && (
-          <TinderCard
-            ref={childRefs[currentIndex]}
-            className='swipe'
-            key={`${cards[currentIndex].id}-${currentIndex}`}
-            onSwipe={(dir) => swiped(dir, cards[currentIndex].name, currentIndex)}
-            onCardLeftScreen={() => outOfFrame(cards[currentIndex], currentIndex)}
-          >
-            <div
-              style={{ backgroundImage: `url(${cards[currentIndex].image_uri})` }}
-              className='card'
-            >
-              <h3>{cards[currentIndex].name}</h3>
-            </div>
-          </TinderCard>
-        )}
+  {currentIndex < cards.length && (
+    <TinderCard
+      ref={childRefs[currentIndex]}
+      className='swipe'
+      key={`${cards[currentIndex].id}-${currentIndex}`}
+      onSwipe={(dir) => swiped(dir, cards[currentIndex].name, currentIndex)}
+      onCardLeftScreen={() => outOfFrame(cards[currentIndex], currentIndex)}
+    >
+      <div
+        style={{ backgroundImage: `url(${cards[currentIndex].image_uri})` }}
+        className='card'
+      >
+        <h3>{cards[currentIndex].name}</h3>
       </div>
+    </TinderCard>
+  )}
+</div>
       <div className='buttons'>
         <button style={{ backgroundColor: (!canSwipe) ? '#c3c4d3' : undefined }} onClick={() => swipe('left')} disabled={!canSwipe}>Swipe left!</button>
         <button style={{ backgroundColor: (!canGoBack) ? '#c3c4d3' : undefined }} onClick={() => goBack()} disabled={!canGoBack}>Undo swipe!</button>
